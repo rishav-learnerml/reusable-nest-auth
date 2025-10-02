@@ -3,9 +3,17 @@ services:
     image: mongo:latest
     container_name: mongo-nest-auth
     ports:
-      - "27017:27017"
+      - '27017:27017'
     volumes:
       - mongo-data:/data/db
+
+  valkeydb:
+    image: valkey/valkey
+    container_name: valkey-nest-auth
+    ports:
+      - '6379:6379'
+    environment:
+      - VALKEY_PASSWORD=sup65565ggv#$%F
 
 volumes:
   mongo-data:

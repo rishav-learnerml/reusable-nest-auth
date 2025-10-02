@@ -1,42 +1,40 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UserService } from 'src/user/user.service';
 import { RegisterUserDto } from '../user/dto/registerUser.dto';
 import bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { LoginUserDto } from 'src/user/dto/loginUser.dto';
-import { NotFoundError } from 'rxjs';
+import { RefreshTokenDto } from 'src/auth/dto/refreshToken.dto';
+import { createClient, RedisClientType } from 'redis';
 
 @Injectable()
 export class AuthService {
+  private readonly redisClient: RedisClientType;
+
+  private readonly accessTokenExpiry = process.env.ACCESS_TOKEN_EXPIRY || '15m';
+
+  private readonly refreshTokenExpiry =
+    process.env.REFRESH_TOKEN_EXPIRY || '3d';
+
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
-  ) {}
-
-  async registerUser(
-    registerUserDto: RegisterUserDto,
-  ): Promise<{ access_token: string; refresh_token: string }> {
-    // logic for user registration
-    // 1. check if email already exists done
-    // 2. hash password done
-    // 3. save user to database done
-    // 4. generate jwt access and refresh token
-    // 5. send tokens to user (usually in cookies)
-
-    const hash = await bcrypt.hash(registerUserDto.password, 10);
-    const user = await this.userService.createUser({
-      ...registerUserDto,
-      password: hash,
+  ) {
+    this.redisClient = createClient({
+      url: process.env.VALKEY_URL || 'redis://localhost:6379',
     });
+    this.redisClient.connect();
+  }
 
-    const payload = { id: user._id };
-
+  private async generateTokens(payload: {
+    id: string;
+  }): Promise<{ access_token: string; refresh_token: string }> {
     const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn: '15m',
+      expiresIn: this.accessTokenExpiry,
     });
 
     const refresh_token = await this.jwtService.signAsync(payload, {
-      expiresIn: '3d',
+      expiresIn: this.refreshTokenExpiry,
     });
 
     return {
@@ -45,14 +43,28 @@ export class AuthService {
     };
   }
 
+  async registerUser(
+    registerUserDto: RegisterUserDto,
+  ): Promise<{ access_token: string; refresh_token: string }> {
+    const hash = await bcrypt.hash(registerUserDto.password, 10);
+
+    const user = await this.userService.createUser({
+      ...registerUserDto,
+      password: hash,
+    });
+
+    const payload = { id: user._id.toString() };
+
+    return this.generateTokens(payload);
+  }
+
   async login(
     loginUserDto: LoginUserDto,
   ): Promise<{ access_token: string; refresh_token: string }> {
-    //1. validate user credentials
     const user = await this.userService.findUserByEmail(loginUserDto.email);
 
     if (!user) {
-      throw new NotFoundException('Invalid credentials - email not found!');
+      throw new UnauthorizedException('Invalid credentials.');
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -61,23 +73,41 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new NotFoundException('Invalid credentials - wrong password!');
+      throw new UnauthorizedException('Invalid credentials.');
     }
 
-    //2. generate jwt access and refresh token
-    const payload = { id: user._id };
+    const payload = { id: user._id.toString() };
+    return this.generateTokens(payload);
+  }
 
-    const access_token = await this.jwtService.signAsync(payload, {
-      expiresIn: '15m',
+  async refresh(
+    refreshTokenDto: RefreshTokenDto,
+  ): Promise<{ access_token: string; refresh_token: string }> {
+    try {
+      const isBlacklisted = await this.redisClient.get(
+        refreshTokenDto.refresh_token,
+      );
+
+      if (isBlacklisted) {
+        throw new UnauthorizedException('Refresh token has been invalidated.');
+      }
+
+      const payload = await this.jwtService.verifyAsync(
+        refreshTokenDto.refresh_token,
+      );
+
+      const newPayload = { id: payload.id };
+
+      return this.generateTokens(newPayload);
+    } catch (error) {
+      throw new UnauthorizedException('Invalid refresh token.');
+    }
+  }
+
+  async logout(refreshTokenDto: RefreshTokenDto): Promise<void> {
+    const expiry = parseInt(this.refreshTokenExpiry) * 24 * 60 * 60; // Convert days to seconds
+    await this.redisClient.set(refreshTokenDto.refresh_token, 'blacklisted', {
+      EX: expiry,
     });
-
-    const refresh_token = await this.jwtService.signAsync(payload, {
-      expiresIn: '3d',
-    });
-
-    return {
-      access_token,
-      refresh_token,
-    };
   }
 }
