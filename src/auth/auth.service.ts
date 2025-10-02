@@ -6,17 +6,20 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginUserDto } from 'src/user/dto/loginUser.dto';
 import { createClient, RedisClientType } from 'redis';
 import { Response, Request } from 'express';
+import { CloudinaryService } from 'src/cloudinary/cloudinary.service';
 
 @Injectable()
 export class AuthService {
   private readonly redisClient: RedisClientType;
 
   private readonly accessTokenExpiry = process.env.ACCESS_TOKEN_EXPIRY || '15m';
-  private readonly refreshTokenExpiry = process.env.REFRESH_TOKEN_EXPIRY || '3d';
+  private readonly refreshTokenExpiry =
+    process.env.REFRESH_TOKEN_EXPIRY || '3d';
 
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private cloudinaryService: CloudinaryService,
   ) {
     this.redisClient = createClient({
       url: process.env.VALKEY_URL || 'redis://localhost:6379',
@@ -50,15 +53,40 @@ export class AuthService {
     });
   }
 
-  async registerUser(registerUserDto: RegisterUserDto, res: Response) {
+  async registerUser(
+    registerUserDto: RegisterUserDto,
+    file: Express.Multer.File,
+    res: Response,
+  ) {
+    const existingUser = await this.userService.findUserByEmail(
+      registerUserDto.email,
+    );
+
+    if (existingUser) {
+      throw new UnauthorizedException('Email is already in use.');
+    }
+
+    let profilePicId = 'avatar';
+
+    if (file) {
+      try {
+        const uploadResult = await this.cloudinaryService.uploadImage(file);
+        // return uploadResult;
+        profilePicId = uploadResult.public_id;
+      } catch (error) {
+        throw new UnauthorizedException('Profile picture upload failed.');
+      }
+    }
+
     const hash = await bcrypt.hash(registerUserDto.password, 10);
 
     const user = await this.userService.createUser({
       ...registerUserDto,
+      profilePicId,
       password: hash,
     });
 
-    const payload = { id: user._id.toString() };
+    const payload = { id: user._id.toString(), role: 'user' };
     const { access_token, refresh_token } = await this.generateTokens(payload);
 
     this.setRefreshTokenCookie(res, refresh_token);
@@ -85,7 +113,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials.');
     }
 
-    const payload = { id: user._id.toString() };
+    const payload = { id: user._id.toString(), role: user.role };
     const { access_token, refresh_token } = await this.generateTokens(payload);
 
     this.setRefreshTokenCookie(res, refresh_token);
@@ -110,7 +138,7 @@ export class AuthService {
 
     try {
       const payload = await this.jwtService.verifyAsync(refresh_token);
-      const newPayload = { id: payload.id };
+      const newPayload = { id: payload.id, role: payload.role };
 
       const { access_token, refresh_token: new_refresh_token } =
         await this.generateTokens(newPayload);

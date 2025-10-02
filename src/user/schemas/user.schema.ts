@@ -18,6 +18,9 @@ export class User {
     @Prop({ required: true })
     password: string;
 
+    @Prop({ default: 'avatar' })
+    profilePicId?: string;
+
     @Prop({ default: Role.User })
     role: string;
 }
