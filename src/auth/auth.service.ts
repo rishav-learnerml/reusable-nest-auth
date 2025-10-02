@@ -12,7 +12,8 @@ export class AuthService {
   private readonly redisClient: RedisClientType;
 
   private readonly accessTokenExpiry = process.env.ACCESS_TOKEN_EXPIRY || '15m';
-  private readonly refreshTokenExpiry = process.env.REFRESH_TOKEN_EXPIRY || '3d';
+  private readonly refreshTokenExpiry =
+    process.env.REFRESH_TOKEN_EXPIRY || '3d';
 
   constructor(
     private readonly userService: UserService,
@@ -58,7 +59,7 @@ export class AuthService {
       password: hash,
     });
 
-    const payload = { id: user._id.toString() };
+    const payload = { id: user._id.toString(), role: 'user' };
     const { access_token, refresh_token } = await this.generateTokens(payload);
 
     this.setRefreshTokenCookie(res, refresh_token);
@@ -71,6 +72,7 @@ export class AuthService {
 
   async login(loginUserDto: LoginUserDto, res: Response) {
     const user = await this.userService.findUserByEmail(loginUserDto.email);
+    console.log(user);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials.');
@@ -85,7 +87,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials.');
     }
 
-    const payload = { id: user._id.toString() };
+    const payload = { id: user._id.toString(), role: user.role };
     const { access_token, refresh_token } = await this.generateTokens(payload);
 
     this.setRefreshTokenCookie(res, refresh_token);
@@ -110,7 +112,7 @@ export class AuthService {
 
     try {
       const payload = await this.jwtService.verifyAsync(refresh_token);
-      const newPayload = { id: payload.id };
+      const newPayload = { id: payload.id, role: payload.role };
 
       const { access_token, refresh_token: new_refresh_token } =
         await this.generateTokens(newPayload);
