@@ -1,98 +1,160 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Reusable NestJS Authentication Module
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+![NestJS Authentication](https://nestjs.com/img/logo_text.svg)
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Overview
 
-## Description
+Welcome to the **Reusable NestJS Authentication Module**! This project provides a robust and reusable authentication system built with [NestJS](https://nestjs.com/). It is designed to be modular, secure, and easy to integrate into any NestJS application.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Branches
 
-## Project setup
+- **`master`**: Contains the core reusable authentication module.
+- **`lms`**: Demonstrates the usage of the authentication module with a Learning Management System (LMS) example, including protected routes for managing courses.
 
-```bash
-$ yarn install
+---
+
+## Features
+
+- **JWT Authentication**: Secure token-based authentication.
+- **Role-Based Access Control (RBAC)**: Protect routes based on user roles.
+- **Refresh Tokens**: Seamless token renewal.
+- **ValkeyDB Integration**: Token blacklisting for enhanced security.
+- **Modular Design**: Easily integrate into any NestJS project.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16+)
+- Docker (for running ValkeyDB and MongoDB)
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/rishav-learnerml/reusable-nest-auth.git
+   cd reusable-nest-auth
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   yarn install
+   ```
+
+3. Set up environment variables:
+   Create a `.env` file in the root directory and configure the following:
+
+   ```env
+   ACCESS_TOKEN_EXPIRY=15m
+   REFRESH_TOKEN_EXPIRY=3d
+   VALKEYDB_URL=redis://localhost:6379
+   MONGO_URL=mongodb://localhost:27017
+   ```
+
+4. Start the services:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+5. Run the application:
+   ```bash
+   yarn start:dev
+   ```
+
+---
+
+## Usage
+
+### Authentication Module
+
+The `master` branch contains the reusable authentication module. You can integrate it into your NestJS application by importing the `AuthModule` and configuring it as needed.
+
+### LMS Example
+
+The `lms` branch demonstrates how to use the authentication module in a Learning Management System. It includes:
+
+- **Courses Module**: Manage courses with protected routes.
+- **Role-Based Guards**: Ensure only authorized users can access specific routes.
+
+#### Example Protected Route
+
+```typescript
+@Get('courses')
+@UseGuards(AuthGuard, RolesGuard)
+@Roles('admin')
+findAllCourses() {
+  return this.courseService.findAll();
+}
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ yarn run start
+## Screenshots
 
-# watch mode
-$ yarn run start:dev
+### 1. Authentication Flow
 
-# production mode
-$ yarn run start:prod
+![Authentication Flow](https://via.placeholder.com/800x400?text=Authentication+Flow)
+
+### 2. Protected Routes
+
+![Protected Routes](https://via.placeholder.com/800x400?text=Protected+Routes)
+
+---
+
+## Docker Setup
+
+The `docker-compose.yml` file includes services for:
+
+- **MongoDB**: Database for storing user and course data.
+- **ValkeyDB**: Drop-in replacement for Redis, used for token blacklisting.
+
+### Example Configuration
+
+```yaml
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo-nest-auth
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+
+  valkeydb:
+    image: valkeydb/valkeydb:latest
+    container_name: valkeydb-nest-auth
+    ports:
+      - '6379:6379'
+    environment:
+      - VALKEYDB_PASSWORD=yourpassword
+
+volumes:
+  mongo-data:
 ```
 
-## Run tests
+---
 
-```bash
-# unit tests
-$ yarn run test
+## Contributing
 
-# e2e tests
-$ yarn run test:e2e
+Contributions are welcome! Feel free to open issues or submit pull requests.
 
-# test coverage
-$ yarn run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
+
+---
+
+## Contact
+
+For any inquiries, feel free to reach out:
+
+- **Author**: Rishav Chatterjee
+- **GitHub**: [rishav-learnerml](https://github.com/rishav-learnerml)
+- **Email**: rishav@example.com
