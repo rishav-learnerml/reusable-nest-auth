@@ -17,17 +17,17 @@ export class CourseService {
     return await this.courseModel.find().exec();
   }
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     return await this.courseModel.findById(id).exec();
   }
 
-  async update(id: number, updateCourseDto: UpdateCourseDto) {
+  async update(id: string, updateCourseDto: UpdateCourseDto) {
     return await this.courseModel
       .findByIdAndUpdate(id, updateCourseDto, { new: true })
       .exec();
   }
 
-  async remove(id: number) {
+  async remove(id: string) {
     return await this.courseModel.findByIdAndDelete(id).exec();
   }
 }

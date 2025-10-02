@@ -44,7 +44,7 @@ export class CourseController {
   @UseGuards(AuthGuard)
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    const course = await this.courseService.findOne(+id);
+    const course = await this.courseService.findOne(id);
     return {
       message: 'Course fetched successfully',
       data: course,
@@ -58,7 +58,7 @@ export class CourseController {
     @Param('id') id: string,
     @Body() updateCourseDto: UpdateCourseDto,
   ) {
-    const updatedCourse = await this.courseService.update(+id, updateCourseDto);
+    const updatedCourse = await this.courseService.update(id, updateCourseDto);
     return {
       message: 'Course updated successfully',
       data: updatedCourse,
@@ -69,7 +69,7 @@ export class CourseController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(Role.Admin)
   async remove(@Param('id') id: string) {
-    await this.courseService.remove(+id);
+    await this.courseService.remove(id);
     return {
       message: 'Course deleted successfully',
     };
