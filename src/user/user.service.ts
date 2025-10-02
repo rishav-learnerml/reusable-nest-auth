@@ -39,4 +39,13 @@ export class UserService {
       throw new InternalServerErrorException('Internal server error');
     }
   }
+
+  async getUserById(id: string) {
+    try {
+      return await this.userModel.findById(id).select('-password').exec();
+    } catch (error) {
+      console.log('Error while finding user by id: ', error);
+      throw new InternalServerErrorException('Internal server error');
+    }
+  }
 }
