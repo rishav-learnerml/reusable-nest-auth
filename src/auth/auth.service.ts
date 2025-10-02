@@ -4,17 +4,15 @@ import { RegisterUserDto } from '../user/dto/registerUser.dto';
 import bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { LoginUserDto } from 'src/user/dto/loginUser.dto';
-import { RefreshTokenDto } from 'src/auth/dto/refreshToken.dto';
 import { createClient, RedisClientType } from 'redis';
+import { Response, Request } from 'express';
 
 @Injectable()
 export class AuthService {
   private readonly redisClient: RedisClientType;
 
   private readonly accessTokenExpiry = process.env.ACCESS_TOKEN_EXPIRY || '15m';
-
-  private readonly refreshTokenExpiry =
-    process.env.REFRESH_TOKEN_EXPIRY || '3d';
+  private readonly refreshTokenExpiry = process.env.REFRESH_TOKEN_EXPIRY || '3d';
 
   constructor(
     private readonly userService: UserService,
@@ -43,9 +41,16 @@ export class AuthService {
     };
   }
 
-  async registerUser(
-    registerUserDto: RegisterUserDto,
-  ): Promise<{ access_token: string; refresh_token: string }> {
+  private setRefreshTokenCookie(res: Response, refresh_token: string) {
+    res.cookie('refresh_token', refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // only HTTPS in prod
+      sameSite: 'strict',
+      maxAge: 3 * 24 * 60 * 60 * 1000, // 3 days
+    });
+  }
+
+  async registerUser(registerUserDto: RegisterUserDto, res: Response) {
     const hash = await bcrypt.hash(registerUserDto.password, 10);
 
     const user = await this.userService.createUser({
@@ -54,13 +59,17 @@ export class AuthService {
     });
 
     const payload = { id: user._id.toString() };
+    const { access_token, refresh_token } = await this.generateTokens(payload);
 
-    return this.generateTokens(payload);
+    this.setRefreshTokenCookie(res, refresh_token);
+
+    return {
+      message: 'User registered successfully!',
+      access_token,
+    };
   }
 
-  async login(
-    loginUserDto: LoginUserDto,
-  ): Promise<{ access_token: string; refresh_token: string }> {
+  async login(loginUserDto: LoginUserDto, res: Response) {
     const user = await this.userService.findUserByEmail(loginUserDto.email);
 
     if (!user) {
@@ -77,37 +86,58 @@ export class AuthService {
     }
 
     const payload = { id: user._id.toString() };
-    return this.generateTokens(payload);
+    const { access_token, refresh_token } = await this.generateTokens(payload);
+
+    this.setRefreshTokenCookie(res, refresh_token);
+
+    return {
+      message: 'User logged in successfully!',
+      access_token,
+    };
   }
 
-  async refresh(
-    refreshTokenDto: RefreshTokenDto,
-  ): Promise<{ access_token: string; refresh_token: string }> {
+  async refresh(req: Request, res: Response) {
+    const refresh_token = req.cookies['refresh_token'];
+
+    if (!refresh_token) {
+      throw new UnauthorizedException('No refresh token provided.');
+    }
+
+    const isBlacklisted = await this.redisClient.get(refresh_token);
+    if (isBlacklisted) {
+      throw new UnauthorizedException('Refresh token has been invalidated.');
+    }
+
     try {
-      const isBlacklisted = await this.redisClient.get(
-        refreshTokenDto.refresh_token,
-      );
-
-      if (isBlacklisted) {
-        throw new UnauthorizedException('Refresh token has been invalidated.');
-      }
-
-      const payload = await this.jwtService.verifyAsync(
-        refreshTokenDto.refresh_token,
-      );
-
+      const payload = await this.jwtService.verifyAsync(refresh_token);
       const newPayload = { id: payload.id };
 
-      return this.generateTokens(newPayload);
-    } catch (error) {
+      const { access_token, refresh_token: new_refresh_token } =
+        await this.generateTokens(newPayload);
+
+      this.setRefreshTokenCookie(res, new_refresh_token);
+
+      return {
+        message: 'Token refreshed successfully!',
+        access_token,
+      };
+    } catch {
       throw new UnauthorizedException('Invalid refresh token.');
     }
   }
 
-  async logout(refreshTokenDto: RefreshTokenDto): Promise<void> {
-    const expiry = parseInt(this.refreshTokenExpiry) * 24 * 60 * 60; // Convert days to seconds
-    await this.redisClient.set(refreshTokenDto.refresh_token, 'blacklisted', {
-      EX: expiry,
-    });
+  async logout(req: Request, res: Response) {
+    const refresh_token = req.cookies['refresh_token'];
+
+    if (refresh_token) {
+      const expiry = 3 * 24 * 60 * 60; // 3 days in seconds
+      await this.redisClient.set(refresh_token, 'blacklisted', { EX: expiry });
+    }
+
+    res.clearCookie('refresh_token');
+
+    return {
+      message: 'User logged out successfully!',
+    };
   }
 }

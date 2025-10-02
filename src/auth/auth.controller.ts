@@ -1,50 +1,36 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Res, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterUserDto } from '../user/dto/registerUser.dto';
 import { LoginUserDto } from 'src/user/dto/loginUser.dto';
-import { RefreshTokenDto } from 'src/auth/dto/refreshToken.dto';
+import type { Response, Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() registerUserDto: RegisterUserDto) {
-    //logic for user registration --> offloaded to service
-    const authTokens = await this.authService.registerUser(registerUserDto);
-
-    return {
-      message: 'User registered successfully!',
-      ...authTokens,
-    };
+  async register(
+    @Body() registerUserDto: RegisterUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.registerUser(registerUserDto, res);
   }
 
   @Post('login')
-  async login(@Body() loginUserDto: LoginUserDto) {
-    const authTokens = await this.authService.login(loginUserDto);
-
-    return {
-      message: 'User logged in successfully!',
-      ...authTokens,
-    };
+  async login(
+    @Body() loginUserDto: LoginUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.login(loginUserDto, res);
   }
 
   @Post('refresh')
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto) {
-    const authTokens = await this.authService.refresh(refreshTokenDto);
-
-    return {
-      message: 'Token refreshed successfully!',
-      ...authTokens,
-    };
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.authService.refresh(req, res);
   }
 
   @Post('logout')
-  async logout(refreshTokenDto: RefreshTokenDto) {
-    this.authService.logout(refreshTokenDto);
-
-    return {
-      message: 'User logged out successfully!',
-    };
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    return this.authService.logout(req, res);
   }
 }
